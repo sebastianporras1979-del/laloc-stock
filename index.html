@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laloc — Stock Alert</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --cream: #F5F0E8; --dark: #1A1410; --leather: #8B5E3C; --alert-red: #C0392B; --alert-orange: #D4660A; --border: #D4C4B0; --muted: #8A7A6A; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--cream); color: var(--dark); font-family: 'DM Mono', monospace; min-height: 100vh; }
+  header { border-bottom: 1px solid var(--border); padding: 24px 40px; display: flex; align-items: center; justify-content: space-between; background: var(--cream); position: sticky; top: 0; z-index: 100; }
+  .logo { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 900; color: var(--dark); }
+  .logo span { color: var(--leather); }
+  .header-right { display: flex; align-items: center; gap: 20px; }
+  .last-update { font-size: 11px; color: var(--muted); }
+  .refresh-btn { background: var(--dark); color: var(--cream); border: none; padding: 8px 18px; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; }
+  .refresh-btn:hover { background: var(--leather); }
+  .refresh-btn:disabled { background: var(--muted); cursor: not-allowed; }
+  .main { max-width: 1200px; margin: 0 auto; padding: 40px; }
+  .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); margin-bottom: 48px; }
+  .summary-card { background: var(--cream); padding: 28px 24px; text-align: center; }
+  .summary-card .number { font-family: 'Playfair Display', serif; font-size: 48px; font-weight: 900; line-height: 1; margin-bottom: 8px; }
+  .summary-card .label { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); }
+  .num-red { color: var(--alert-red); } .num-orange { color: var(--alert-orange); } .num-dark { color: var(--dark); }
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+  .filter-btn { padding: 6px 14px; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid var(--border); background: white; cursor: pointer; }
+  .filter-btn.active, .filter-btn:hover { background: var(--dark); color: var(--cream); border-color: var(--dark); }
+  .alert-item { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 16px 20px; border: 1px solid var(--border); border-left: 3px solid transparent; margin-bottom: 6px; background: white; animation: slideIn 0.3s ease forwards; opacity: 0; }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .alert-item.critical { border-left-color: var(--alert-red); }
+  .alert-item.warning { border-left-color: var(--alert-orange); }
+  .alert-item.zero { border-left-color: var(--dark); background: #F9F5F0; }
+  .item-info { display: flex; flex-direction: column; gap: 4px; }
+  .item-name { font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 600; }
+  .item-sku { font-size: 10px; color: var(--muted); }
+  .item-variants { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .variant-pill { display: flex; align-items: center; gap: 5px; padding: 3px 10px; font-size: 10px; border: 1px solid var(--border); background: var(--cream); }
+  .variant-pill.stock-0 { background: var(--dark); color: var(--cream); border-color: var(--dark); }
+  .variant-pill.stock-1 { border-color: var(--alert-red); color: var(--alert-red); }
+  .variant-pill.stock-2 { border-color: var(--alert-orange); color: var(--alert-orange); }
+  .variant-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .item-right { text-align: right; }
+  .item-total-stock { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 900; line-height: 1; }
+  .item-total-label { font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .item-category { display: inline-block; margin-top: 6px; font-size: 9px; padding: 2px 8px; border: 1px solid var(--border); color: var(--muted); }
+  .loading-state { text-align: center; padding: 80px 20px; }
+  .loading-spinner { width: 40px; height: 40px; border: 2px solid var(--border); border-top-color: var(--leather); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 20px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); }
+  .error-state { padding: 32px; border: 1px solid var(--alert-red); border-left: 4px solid var(--alert-red); background: white; }
+  .error-title { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--alert-red); margin-bottom: 8px; }
+  .error-msg { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .empty-state { text-align: center; padding: 60px 20px; border: 1px dashed var(--border); }
+  .empty-icon { font-size: 40px; margin-bottom: 16px; }
+  .empty-text { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--muted); }
+  .section { margin-bottom: 48px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">laloc<span>.</span></div>
+  <div class="header-right">
+    <span class="last-update" id="lastUpdate">—</span>
+    <button class="refresh-btn" id="refreshBtn" onclick="loadStock()">↻ Actualizar</button>
+  </div>
+</header>
+<div class="main">
+  <div class="summary">
+    <div class="summary-card"><div class="number num-dark" id="totalProducts">—</div><div class="label">Productos totales</div></div>
+    <div class="summary-card"><div class="number num-red" id="criticalCount">—</div><div class="label">Stock crítico (≤1)</div></div>
+    <div class="summary-card"><div class="number num-orange" id="warningCount">—</div><div class="label">Stock bajo (2)</div></div>
+    <div class="summary-card"><div class="number num-dark" id="zeroCount">—</div><div class="label">Sin stock</div></div>
+  </div>
+  <div id="content">
+    <div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">Conectando con Tiendanube...</div></div>
+  </div>
+</div>
+<script>
+  const ACCESS_TOKEN = '906c4e84628d536ba76593d24b6d14514cf33421';
+  const USER_ID = '7469880';
+  const TN_BASE = 'https://api.tiendanube.com/v1/' + USER_ID;
+  const PROXY = 'https://api.allorigins.win/raw?url=';
+  let allAlerts = [], activeFilter = 'all';
+
+  async function fetchAllProducts() {
+    let products = [], page = 1;
+    while (true) {
+      const url = TN_BASE + '/products?per_page=200&page=' + page;
+      const res = await fetch(PROXY + encodeURIComponent(url), {
+        headers: { 'Authentication': 'bearer ' + ACCESS_TOKEN, 'User-Agent': 'Laloc StockAlert/1.0' }
+      });
+      if (!res.ok) throw new Error('Error ' + res.status);
+      const batch = await res.json();
+      if (!batch || batch.length === 0) break;
+      products = products.concat(batch);
+      if (batch.length < 200) break;
+      page++;
+    }
+    return products;
+  }
+
+  function getStockAlerts(products) {
+    const alerts = [];
+    for (const product of products) {
+      const variants = product.variants || [];
+      const lowVariants = [];
+      for (const v of variants) {
+        if (v.stock !== null && v.stock <= 2) {
+          lowVariants.push({ name: (v.values || []).map(x => x.es || x.name || '').join(' / ') || 'Único', stock: v.stock });
+        }
+      }
+      if (lowVariants.length > 0) {
+        const minStock = Math.min(...lowVariants.map(v => v.stock));
+        alerts.push({
+          name: (product.name && product.name.es) || product.name || 'Sin nombre',
+          sku: (variants[0] && variants[0].sku) || '—',
+          category: (product.categories && product.categories[0] && product.categories[0].name && product.categories[0].name.es) || 'Sin categoría',
+          lowVariants,
+          totalAlertStock: lowVariants.reduce((a, v) => a + v.stock, 0),
+          minStock,
+          severity: minStock === 0 ? 'zero' : minStock === 1 ? 'critical' : 'warning'
+        });
+      }
+    }
+    return alerts.sort((a, b) => ({zero:0,critical:1,warning:2})[a.severity] - ({zero:0,critical:1,warning:2})[b.severity]);
+  }
+
+  function updateSummary(products, alerts) {
+    document.getElementById('totalProducts').textContent = products.length;
+    document.getElementById('criticalCount').textContent = alerts.filter(a => a.severity === 'critical').length;
+    document.getElementById('warningCount').textContent = alerts.filter(a => a.severity === 'warning').length;
+    document.getElementById('zeroCount').textContent = alerts.filter(a => a.severity === 'zero').length;
+  }
+
+  function renderAlerts(alerts) {
+    const filtered = activeFilter === 'all' ? alerts : alerts.filter(a => a.severity === activeFilter);
+    const content = document.getElementById('content');
+    if (filtered.length === 0) {
+      content.innerHTML = '<div class="empty-state"><div class="empty-icon">✓</div><div class="empty-text">Sin alertas de stock en esta categoría</div></div>';
+      return;
+    }
+    let html = '<div class="filter-bar">'
+      + '<button class="filter-btn ' + (activeFilter==='all'?'active':'') + '" onclick="setFilter(\'all\')">Todos (' + alerts.length + ')</button>'
+      + '<button class="filter-btn ' + (activeFilter==='zero'?'active':'') + '" onclick="setFilter(\'zero\')">Sin stock (' + alerts.filter(a=>a.severity==='zero').length + ')</button>'
+      + '<button class="filter-btn ' + (activeFilter==='critical'?'active':'') + '" onclick="setFilter(\'critical\')">Crítico ≤1 (' + alerts.filter(a=>a.severity==='critical').length + ')</button>'
+      + '<button class="filter-btn ' + (activeFilter==='warning'?'active':'') + '" onclick="setFilter(\'warning\')">Bajo =2 (' + alerts.filter(a=>a.severity==='warning').length + ')</button>'
+      + '</div><div class="section">';
+    filtered.forEach(function(alert, i) {
+      const sc = alert.severity==='zero'?'num-dark':alert.severity==='critical'?'num-red':'num-orange';
+      const pills = alert.lowVariants.map(v => '<div class="variant-pill stock-' + v.stock + '"><div class="variant-dot"></div>' + v.name + ': ' + v.stock + '</div>').join('');
+      html += '<div class="alert-item ' + alert.severity + '" style="animation-delay:' + (i*0.04) + 's"><div class="item-info"><div class="item-name">' + alert.name + '</div><div class="item-sku">SKU: ' + alert.sku + '</div><div class="item-variants">' + pills + '</div></div><div class="item-right"><div class="item-total-stock ' + sc + '">' + alert.totalAlertStock + '</div><div class="item-total-label">uds. en alerta</div><div class="item-category">' + alert.category + '</div></div></div>';
+    });
+    content.innerHTML = html + '</div>';
+  }
+
+  function setFilter(f) { activeFilter = f; renderAlerts(allAlerts); }
+
+  async function loadStock() {
+    const btn = document.getElementById('refreshBtn');
+    btn.disabled = true; btn.textContent = '↻ Cargando...';
+    document.getElementById('content').innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">Obteniendo productos...</div></div>';
+    try {
+      const products = await fetchAllProducts();
+      allAlerts = getStockAlerts(products);
+      updateSummary(products, allAlerts);
+      renderAlerts(allAlerts);
+      document.getElementById('lastUpdate').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-AR');
+    } catch(err) {
+      document.getElementById('content').innerHTML = '<div class="error-state"><div class="error-title">Error al conectar</div><div class="error-msg">' + err.message + '</div></div>';
+    }
+    btn.disabled = false; btn.textContent = '↻ Actualizar';
+  }
+
+  loadStock();
+</script>
+</body>
+</html>
