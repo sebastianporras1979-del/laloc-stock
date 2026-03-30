@@ -2,7 +2,7 @@ exports.handler = async function(event) {
   const path = event.queryStringParameters?.path || '/products';
   const page = event.queryStringParameters?.page || '1';
 
-  const ACCESS_TOKEN = '3e8a614644a6cd37e0a3ae8b50f42a7f54ccd7d4';
+  const ACCESS_TOKEN = process.env.TN_ACCESS_TOKEN;
   const USER_ID = '7469880';
 
   const url = `https://api.tiendanube.com/v1/${USER_ID}${path}?per_page=200&page=${page}`;
